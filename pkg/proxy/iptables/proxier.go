@@ -263,11 +263,13 @@ type Proxier struct {
 }
 
 // listenPortOpener opens ports by calling bind() and listen().
-type listenPortOpener struct{}
+type listenPortOpener struct{
+	isIPv6 bool
+}
 
 // OpenLocalPort holds the given local port open.
 func (l *listenPortOpener) OpenLocalPort(lp *utilproxy.LocalPort) (utilproxy.Closeable, error) {
-	return openLocalPort(lp)
+	return openLocalPort(l.isIPv6, lp)
 }
 
 // Proxier implements ProxyProvider
@@ -337,7 +339,7 @@ func NewProxier(ipt utiliptables.Interface,
 		clusterCIDR:              clusterCIDR,
 		hostname:                 hostname,
 		nodeIP:                   nodeIP,
-		portMapper:               &listenPortOpener{},
+		portMapper:               &listenPortOpener{isIPv6: ipt.IsIpv6()},
 		recorder:                 recorder,
 		healthChecker:            healthChecker,
 		healthzServer:            healthzServer,
@@ -1392,7 +1394,7 @@ func writeBytesLine(buf *bytes.Buffer, bytes []byte) {
 	buf.WriteByte('\n')
 }
 
-func openLocalPort(lp *utilproxy.LocalPort) (utilproxy.Closeable, error) {
+func openLocalPort(isIPv6 bool, lp *utilproxy.LocalPort) (utilproxy.Closeable, error) {
 	// For ports on node IPs, open the actual port and hold it, even though we
 	// use iptables to redirect traffic.
 	// This ensures a) that it's safe to use that port and b) that (a) stays
@@ -1408,13 +1410,21 @@ func openLocalPort(lp *utilproxy.LocalPort) (utilproxy.Closeable, error) {
 	var socket utilproxy.Closeable
 	switch lp.Protocol {
 	case "tcp":
-		listener, err := net.Listen("tcp", net.JoinHostPort(lp.IP, strconv.Itoa(lp.Port)))
+		proto := lp.Protocol
+		if isIPv6 {
+			proto+="6"
+		}
+		listener, err := net.Listen(proto, net.JoinHostPort(lp.IP, strconv.Itoa(lp.Port)))
 		if err != nil {
 			return nil, err
 		}
 		socket = listener
 	case "udp":
-		addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(lp.IP, strconv.Itoa(lp.Port)))
+		proto := lp.Protocol
+		if isIPv6 {
+			proto+="6"
+		}
+		addr, err := net.ResolveUDPAddr(proto, net.JoinHostPort(lp.IP, strconv.Itoa(lp.Port)))
 		if err != nil {
 			return nil, err
 		}
