@@ -846,6 +846,18 @@ func (proxier *Proxier) syncProxyRules() {
 
 		// Capture externalIPs.
 		for _, externalIP := range svcInfo.ExternalIPs {
+			klog.Errorf("isIpv6: %v externalIP: %s", proxier.iptables.IsIpv6(), externalIP)
+			if proxier.iptables.IsIpv6() {
+				if net.ParseIP(externalIP).To4() != nil {
+					klog.Errorf("ExternalIP for service is ipv4, we are operating with ip6tables, skipping.")
+					continue				}
+			} else {
+				if net.ParseIP(externalIP).To4() == nil {
+					klog.Errorf("ExternalIP for service is ipv6, we are operating with iptables, skipping.")
+					continue
+				}
+			}
+
 			// If the "external" IP happens to be an IP that is local to this
 			// machine, hold the local port open so no other process can open it
 			// (because the socket might open but it would never work).
@@ -920,6 +932,20 @@ func (proxier *Proxier) syncProxyRules() {
 			fwChain := svcInfo.serviceFirewallChainName
 			for _, ingress := range svcInfo.LoadBalancerStatus.Ingress {
 				if ingress.IP != "" {
+
+					klog.Errorf("isIpv6: %v externalIP: %s", proxier.iptables.IsIpv6(), ingress.IP)
+					if proxier.iptables.IsIpv6() {
+						if net.ParseIP(ingress.IP).To4() != nil {
+							klog.Errorf("Ingress IP is ipv4, we are operating with ip6tables, skipping.")
+							continue
+						}
+					} else {
+						if net.ParseIP(ingress.IP).To4() == nil {
+							klog.Errorf("Ingress IP is ipv6, we are operating with iptables, skipping.")
+							continue
+						}
+					}
+
 					// create service firewall chain
 					if chain, ok := existingNATChains[fwChain]; ok {
 						writeBytesLine(proxier.natChains, chain)
