@@ -952,20 +952,19 @@ func (proxier *Proxier) syncProxyRules() {
 		fwChain := svcInfo.serviceFirewallChainName
 		for _, ingress := range svcInfo.LoadBalancerStatus.Ingress {
 			if ingress.IP != "" {
-				if hasEndpoints {
-					klog.Errorf("isIpv6: %v externalIP: %s", proxier.iptables.IsIpv6(), ingress.IP)
-					if proxier.iptables.IsIpv6() {
-						if net.ParseIP(ingress.IP).To4() != nil {
-							klog.Errorf("Ingress IP is ipv4, we are operating with ip6tables, skipping.")
-							continue
-						}
-					} else {
-						if net.ParseIP(ingress.IP).To4() == nil {
-							klog.Errorf("Ingress IP is ipv6, we are operating with iptables, skipping.")
-							continue
-						}
+				klog.Errorf("isIpv6: %v externalIP: %s", proxier.iptables.IsIpv6(), ingress.IP)
+				if proxier.iptables.IsIpv6() {
+					if net.ParseIP(ingress.IP).To4() != nil {
+						klog.Errorf("Ingress IP is ipv4, we are operating with ip6tables, skipping.")
+						continue
 					}
-
+				} else {
+					if net.ParseIP(ingress.IP).To4() == nil {
+						klog.Errorf("Ingress IP is ipv6, we are operating with iptables, skipping.")
+						continue
+					}
+				}
+				if hasEndpoints {
 					// create service firewall chain
 					if chain, ok := existingNATChains[fwChain]; ok {
 						writeBytesLine(proxier.natChains, chain)
